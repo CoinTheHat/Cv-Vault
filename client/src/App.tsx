@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Header } from "@/components/Header";
+import { WalletDebug } from "@/components/WalletDebug";
 import Home from "@/pages/Home";
 import RegisterCV from "@/pages/RegisterCV";
 import Success from "@/pages/Success";
@@ -40,7 +41,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SuiClientProvider networks={networks} defaultNetwork="testnet">
-        <WalletProvider autoConnect preferredWallets={['Sui Wallet']}>
+        <WalletProvider autoConnect>
           <TooltipProvider>
             <div className="flex min-h-screen flex-col">
               <Header />
@@ -48,6 +49,7 @@ function App() {
                 <Router />
               </main>
             </div>
+            <WalletDebug />
             <Toaster />
           </TooltipProvider>
         </WalletProvider>
