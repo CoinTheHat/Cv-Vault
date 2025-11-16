@@ -39,8 +39,8 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <SuiClientProvider networks={networks} defaultNetwork="testnet" queryClient={suiQueryClient}>
-        <WalletProvider autoConnect>
+      <SuiClientProvider networks={networks} defaultNetwork="testnet">
+        <WalletProvider autoConnect preferredWallets={['Sui Wallet']}>
           <TooltipProvider>
             <div className="flex min-h-screen flex-col">
               <Header />

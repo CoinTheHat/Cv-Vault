@@ -119,7 +119,7 @@ export default function RegisterCV() {
           <Alert className="mb-6" data-testid="alert-wallet-required">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Please connect your Sui wallet using the "Connect Wallet" button in the header to register your CV.
+              Please connect your wallet (Slash/Sui Wallet) using the "Connect Wallet" button in the header to register your CV.
             </AlertDescription>
           </Alert>
         )}

@@ -1,12 +1,13 @@
 import { randomBytes } from "crypto";
 
 /**
- * Mock Sui Blockchain Service
+ * Sui Blockchain Service
  * 
- * This service simulates registering CV proofs on the Sui blockchain.
- * In production, this would integrate with the actual Sui SDK.
+ * This service handles CV proof registration on the Sui blockchain.
+ * Currently using mock implementation - ready for real Sui SDK integration.
  * 
  * INTEGRATION POINT: Replace mock functions with real Sui SDK calls
+ * Wallet: Slash Wallet (formerly Sui Wallet) / other Sui Standard wallets
  * Documentation: https://docs.sui.io/
  */
 
