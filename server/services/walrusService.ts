@@ -1,81 +1,105 @@
-import { randomUUID } from "crypto";
-
 /**
- * Mock Walrus Service for Decentralized Storage
+ * REAL Walrus Service for Decentralized Storage
  * 
- * This service simulates uploading CV files to Walrus decentralized storage.
- * In production, this would integrate with the actual Walrus SDK.
- * 
- * INTEGRATION POINT: Replace mock functions with real Walrus SDK calls
- * Documentation: https://docs.walrus.storage/
+ * This service uploads CV files to Walrus testnet using HTTP API.
+ * Documentation: https://docs.wal.app/usage/web-api.html
  */
+
+const WALRUS_PUBLISHER = "https://publisher.walrus-testnet.walrus.space";
+const WALRUS_AGGREGATOR = "https://aggregator.walrus-testnet.walrus.space";
 
 interface WalrusUploadResult {
   contentId: string;
   storageUrl: string;
 }
 
+interface WalrusApiResponse {
+  newlyCreated?: {
+    blobObject: {
+      id: string;
+      blobId: string;
+    };
+  };
+  alreadyCertified?: {
+    blobId: string;
+  };
+}
+
 /**
- * Simulates uploading a CV file to Walrus storage
+ * Uploads a CV file to Walrus testnet storage
  * 
  * @param fileBuffer - The CV file buffer
  * @param fileName - Original filename
  * @returns Promise with contentId and storageUrl
- * 
- * REAL IMPLEMENTATION WOULD:
- * 1. Import Walrus SDK
- * 2. Initialize Walrus client with API credentials
- * 3. Upload file buffer to Walrus network
- * 4. Return actual content ID and retrieval URL
- * 
- * Example (pseudo-code):
- * ```
- * import { WalrusClient } from '@walrus/sdk';
- * const client = new WalrusClient({ apiKey: process.env.WALRUS_API_KEY });
- * const result = await client.upload(fileBuffer, { filename: fileName });
- * return { contentId: result.blobId, storageUrl: result.url };
- * ```
  */
 export async function uploadCVToWalrus(
   fileBuffer: Buffer,
   fileName: string
 ): Promise<WalrusUploadResult> {
-  // Simulate network delay
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  try {
+    console.log(`[WALRUS] Uploading ${fileName} to Walrus testnet...`);
 
-  // Generate mock content ID (in reality, this would be returned by Walrus)
-  const contentId = `walrus_${randomUUID().replace(/-/g, "")}`;
-  
-  // Create mock storage URL (in reality, this would be a Walrus retrieval URL)
-  const storageUrl = `https://walrus.storage/blob/${contentId}`;
+    // Upload to Walrus testnet with deletable=true and 5 epochs
+    const response = await fetch(`${WALRUS_PUBLISHER}/v1/blobs?deletable=true&epochs=5`, {
+      method: "PUT",
+      body: fileBuffer,
+      headers: {
+        "Content-Type": "application/pdf",
+      },
+    });
 
-  console.log(`[MOCK] Uploaded ${fileName} to Walrus with contentId: ${contentId}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Walrus upload failed: ${response.status} - ${errorText}`);
+    }
 
-  return {
-    contentId,
-    storageUrl,
-  };
+    const result: WalrusApiResponse = await response.json();
+    
+    // Extract blob ID from response
+    const blobId = result.newlyCreated?.blobObject.blobId || result.alreadyCertified?.blobId;
+    
+    if (!blobId) {
+      throw new Error("No blob ID returned from Walrus");
+    }
+
+    const contentId = blobId;
+    const storageUrl = `${WALRUS_AGGREGATOR}/v1/blobs/${blobId}`;
+
+    console.log(`[WALRUS] ✅ Successfully uploaded to Walrus!`);
+    console.log(`[WALRUS] Blob ID: ${blobId}`);
+    console.log(`[WALRUS] Storage URL: ${storageUrl}`);
+
+    return {
+      contentId,
+      storageUrl,
+    };
+  } catch (error) {
+    console.error("[WALRUS] Upload error:", error);
+    throw new Error(`Failed to upload to Walrus: ${error instanceof Error ? error.message : "Unknown error"}`);
+  }
 }
 
 /**
- * Retrieves a file from Walrus storage by content ID
+ * Retrieves a file from Walrus storage by blob ID
  * 
- * @param contentId - The Walrus content ID
+ * @param contentId - The Walrus blob ID
  * @returns Promise with file buffer
- * 
- * REAL IMPLEMENTATION WOULD:
- * ```
- * const client = new WalrusClient({ apiKey: process.env.WALRUS_API_KEY });
- * const fileBuffer = await client.download(contentId);
- * return fileBuffer;
- * ```
  */
 export async function retrieveFromWalrus(contentId: string): Promise<Buffer | null> {
-  // Simulate network delay
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  try {
+    console.log(`[WALRUS] Retrieving content from Walrus: ${contentId}`);
+    
+    const response = await fetch(`${WALRUS_AGGREGATOR}/v1/blobs/${contentId}`);
+    
+    if (!response.ok) {
+      console.error(`[WALRUS] Retrieval failed: ${response.status}`);
+      return null;
+    }
 
-  console.log(`[MOCK] Retrieved content from Walrus: ${contentId}`);
-  
-  // In mock mode, we don't actually store files
-  return null;
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (error) {
+    console.error("[WALRUS] Retrieval error:", error);
+    return null;
+  }
 }

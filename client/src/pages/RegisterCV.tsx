@@ -40,6 +40,12 @@ export default function RegisterCV() {
         throw new Error("Please connect your wallet first");
       }
 
+      // Step 1: Upload CV and get file hash
+      toast({
+        title: "Step 1/3: Uploading to Walrus...",
+        description: "Uploading your CV to decentralized storage",
+      });
+
       const formData = new FormData();
       formData.append("cvFile", data.cvFile);
       formData.append("walletAddress", currentAccount.address);
@@ -54,12 +60,64 @@ export default function RegisterCV() {
         throw new Error(error.message || "Failed to register CV");
       }
 
-      return response.json();
-    },
-    onSuccess: (data) => {
+      const result = await response.json();
+
+      // Step 2: Create blockchain transaction
       toast({
-        title: "CV Registered Successfully",
-        description: "Your CV has been registered with blockchain proof.",
+        title: "Step 2/3: Creating blockchain transaction...",
+        description: "Please sign the transaction in your wallet",
+      });
+
+      return new Promise((resolve, reject) => {
+        const tx = new Transaction();
+        
+        // Add a simple transfer as proof-of-registration
+        // In a full implementation, this would call a Move smart contract
+        tx.transferObjects(
+          [tx.gas],
+          currentAccount.address
+        );
+
+        signAndExecuteTransaction(
+          {
+            transaction: tx,
+            chain: "sui:testnet",
+          },
+          {
+            onSuccess: async (txResult) => {
+              toast({
+                title: "Step 3/3: Finalizing...",
+                description: "Saving proof to database",
+              });
+
+              // Update the backend with real transaction hash
+              const finalResponse = await fetch("/api/proof/update-tx", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  proofCode: result.proofCode,
+                  txHash: txResult.digest,
+                }),
+              });
+
+              if (!finalResponse.ok) {
+                throw new Error("Failed to update transaction hash");
+              }
+
+              const finalResult = await finalResponse.json();
+              resolve(finalResult);
+            },
+            onError: (error) => {
+              reject(new Error(`Transaction failed: ${error.message}`));
+            },
+          }
+        );
+      });
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "✅ Registration Complete!",
+        description: "Your CV is now on-chain and stored on Walrus!",
       });
       setLocation(`/success/${data.proofCode}`);
     },

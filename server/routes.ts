@@ -99,6 +99,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   /**
+   * POST /api/proof/update-tx
+   * 
+   * Updates proof record with real blockchain transaction hash
+   */
+  app.post("/api/proof/update-tx", async (req, res) => {
+    try {
+      const { proofCode, txHash } = req.body;
+
+      if (!proofCode || !txHash) {
+        return res.status(400).json({ message: "Proof code and transaction hash required" });
+      }
+
+      console.log(`\n=== Updating Transaction Hash ===`);
+      console.log(`Proof Code: ${proofCode}`);
+      console.log(`Real Tx Hash: ${txHash}`);
+
+      const proof = await storage.getCVProofByCode(proofCode);
+
+      if (!proof) {
+        return res.status(404).json({ message: "Proof not found" });
+      }
+
+      // Update with real transaction hash
+      const updatedProof = await storage.createCVProof({
+        ...proof,
+        txHash,
+        proofCode: txHash, // Use real tx hash as proof code
+      });
+
+      console.log(`=== Transaction Updated ===\n`);
+
+      res.json(updatedProof);
+    } catch (error) {
+      console.error("Error updating transaction:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to update transaction",
+      });
+    }
+  });
+
+  /**
    * GET /api/proof/:proofCode
    * 
    * Retrieves a CV proof by proof code
