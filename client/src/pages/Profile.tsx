@@ -20,8 +20,14 @@ import type { CVProof } from "@shared/schema";
 export default function Profile() {
   const currentAccount = useCurrentAccount();
 
-  const { data: proofs, isLoading } = useQuery<CVProof[]>({
+  const { data: proofs, isLoading, error, refetch } = useQuery<CVProof[]>({
     queryKey: ["/api/proofs/wallet", currentAccount?.address],
+    queryFn: async () => {
+      if (!currentAccount?.address) throw new Error("No wallet connected");
+      const response = await fetch(`/api/proofs/wallet/${currentAccount.address}`);
+      if (!response.ok) throw new Error("Failed to fetch proofs");
+      return response.json();
+    },
     enabled: !!currentAccount?.address,
   });
 
@@ -38,11 +44,9 @@ export default function Profile() {
               <p className="mb-6 text-muted-foreground max-w-md">
                 Please connect your wallet to view your registered CVs and manage your blockchain proofs.
               </p>
-              <Link href="/">
-                <Button data-testid="button-go-home" asChild>
-                  <span>Go to Home</span>
-                </Button>
-              </Link>
+              <Button data-testid="button-go-home" asChild>
+                <Link href="/">Go to Home</Link>
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -78,12 +82,12 @@ export default function Profile() {
                 View and manage your registered CV proofs
               </p>
             </div>
-            <Link href="/register">
-              <Button className="gap-2" data-testid="button-register-new-cv">
+            <Button className="gap-2" data-testid="button-register-new-cv" asChild>
+              <Link href="/register">
                 <Plus className="h-4 w-4" />
                 Register New CV
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
 
           {/* Wallet Info Card */}
@@ -108,7 +112,26 @@ export default function Profile() {
             Registered CVs {proofs && `(${proofs.length})`}
           </h2>
 
-          {isLoading ? (
+          {error ? (
+            <Card className="border-destructive">
+              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="mb-4 rounded-full bg-destructive/10 p-4">
+                  <AlertCircle className="h-8 w-8 text-destructive" />
+                </div>
+                <h3 className="mb-2 text-lg font-semibold">Error Loading CVs</h3>
+                <p className="mb-6 text-sm text-muted-foreground max-w-md">
+                  {error instanceof Error ? error.message : "Failed to load your registered CVs. Please try again."}
+                </p>
+                <Button 
+                  variant="outline" 
+                  onClick={() => refetch()}
+                  data-testid="button-retry"
+                >
+                  Retry
+                </Button>
+              </CardContent>
+            </Card>
+          ) : isLoading ? (
             <div className="space-y-4">
               {[1, 2].map((i) => (
                 <Card key={i} className="border-card-border">
@@ -159,19 +182,17 @@ export default function Profile() {
 
                     {/* Actions */}
                     <div className="flex flex-col gap-2 sm:flex-row">
-                      <Link href={`/p/${proof.proofCode}`}>
-                        <Button 
-                          variant="outline" 
-                          className="w-full gap-2 sm:flex-1"
-                          data-testid={`button-view-proof-${proof.id}`}
-                          asChild
-                        >
-                          <span>
-                            <Shield className="h-4 w-4" />
-                            View Proof
-                          </span>
-                        </Button>
-                      </Link>
+                      <Button 
+                        variant="outline" 
+                        className="w-full gap-2 sm:flex-1"
+                        data-testid={`button-view-proof-${proof.id}`}
+                        asChild
+                      >
+                        <Link href={`/p/${proof.proofCode}`}>
+                          <Shield className="h-4 w-4" />
+                          View Proof
+                        </Link>
+                      </Button>
                       <Button
                         variant="outline"
                         className="w-full gap-2 sm:flex-1"
@@ -197,12 +218,12 @@ export default function Profile() {
                 <p className="mb-6 text-sm text-muted-foreground max-w-md">
                   You haven't registered any CVs yet. Start by uploading your first CV to create a blockchain-backed proof.
                 </p>
-                <Link href="/register">
-                  <Button className="gap-2" data-testid="button-register-first-cv">
+                <Button className="gap-2" data-testid="button-register-first-cv" asChild>
+                  <Link href="/register">
                     <Plus className="h-4 w-4" />
                     Register Your First CV
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
           )}
