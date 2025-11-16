@@ -1,27 +1,70 @@
 import { Link, useLocation } from "wouter";
-import { Shield, User } from "lucide-react";
+import { Shield, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ConnectButton, useCurrentAccount } from "@mysten/dapp-kit";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuLabel, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
+import { ConnectButton, useCurrentAccount, useDisconnectWallet } from "@mysten/dapp-kit";
 
 function WalletButton() {
   const currentAccount = useCurrentAccount();
   const [, setLocation] = useLocation();
+  const { mutate: disconnect } = useDisconnectWallet();
 
   if (!currentAccount) {
     return <ConnectButton data-testid="button-connect-wallet" />;
   }
 
+  const truncateAddress = (address: string) => {
+    return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+  };
+
   return (
-    <Button
-      variant="outline"
-      size="default"
-      className="gap-2"
-      onClick={() => setLocation("/profile")}
-      data-testid="button-profile"
-    >
-      <User className="h-4 w-4" />
-      <span className="hidden sm:inline">Profile</span>
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="default"
+          className="gap-2"
+          data-testid="button-profile"
+        >
+          <User className="h-4 w-4" />
+          <span className="hidden sm:inline">Profile</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex flex-col space-y-1">
+            <p className="text-sm font-medium leading-none">My Wallet</p>
+            <p className="text-xs leading-none text-muted-foreground font-mono">
+              {truncateAddress(currentAccount.address)}
+            </p>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem 
+          onClick={() => setLocation("/profile")}
+          data-testid="menu-item-profile"
+        >
+          <User className="mr-2 h-4 w-4" />
+          <span>View Profile</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem 
+          onClick={() => disconnect()}
+          className="text-destructive focus:text-destructive"
+          data-testid="menu-item-disconnect"
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          <span>Disconnect Wallet</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
