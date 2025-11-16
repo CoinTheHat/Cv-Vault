@@ -3,17 +3,19 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
-import { Upload, Loader2, FileText, Wallet } from "lucide-react";
+import { Upload, Loader2, FileText, Wallet, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
+import { useCurrentAccount, useSignAndExecuteTransactionBlock } from "@mysten/dapp-kit";
+import { TransactionBlock } from "@mysten/sui/transactions";
 
 const registerFormSchema = z.object({
-  walletAddress: z.string().min(10, "Wallet address must be at least 10 characters").regex(/^0x[a-fA-F0-9]+$|^[a-fA-F0-9]+$/, "Please enter a valid wallet address"),
   cvFile: z.instanceof(File).refine((file) => file.type === "application/pdf", "Only PDF files are allowed"),
 });
 
@@ -24,19 +26,23 @@ export default function RegisterCV() {
   const { toast } = useToast();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const currentAccount = useCurrentAccount();
+  const { mutate: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
 
   const form = useForm<RegisterFormData>({
     resolver: zodResolver(registerFormSchema),
-    defaultValues: {
-      walletAddress: "",
-    },
+    defaultValues: {},
   });
 
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterFormData) => {
+      if (!currentAccount?.address) {
+        throw new Error("Please connect your wallet first");
+      }
+
       const formData = new FormData();
       formData.append("cvFile", data.cvFile);
-      formData.append("walletAddress", data.walletAddress);
+      formData.append("walletAddress", currentAccount.address);
 
       const response = await fetch("/api/proof/register", {
         method: "POST",
@@ -109,6 +115,15 @@ export default function RegisterCV() {
   return (
     <div className="container py-12">
       <div className="mx-auto max-w-2xl">
+        {!currentAccount && (
+          <Alert className="mb-6" data-testid="alert-wallet-required">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Please connect your Sui wallet using the "Connect Wallet" button in the header to register your CV.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Card className="border-card-border">
           <CardHeader>
             <CardTitle className="text-2xl">Register Your CV</CardTitle>
@@ -117,6 +132,20 @@ export default function RegisterCV() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {currentAccount && (
+              <div className="mb-6 rounded-lg border bg-muted/30 p-4">
+                <div className="flex items-center gap-2">
+                  <Wallet className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="text-sm font-medium">Connected Wallet</p>
+                    <p className="text-xs text-muted-foreground font-mono" data-testid="text-connected-wallet">
+                      {currentAccount.address}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 {/* File Upload */}
@@ -178,36 +207,10 @@ export default function RegisterCV() {
                   )}
                 />
 
-                {/* Wallet Address */}
-                <FormField
-                  control={form.control}
-                  name="walletAddress"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Wallet Address</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Wallet className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-                          <Input
-                            {...field}
-                            placeholder="0x..."
-                            className="pl-10 h-12"
-                            data-testid="input-wallet-address"
-                          />
-                        </div>
-                      </FormControl>
-                      <FormDescription>
-                        Your blockchain wallet address to claim ownership of this CV proof.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
                 <Button
                   type="submit"
                   className="w-full h-12 text-base"
-                  disabled={registerMutation.isPending}
+                  disabled={registerMutation.isPending || !currentAccount}
                   data-testid="button-submit-registration"
                 >
                   {registerMutation.isPending ? (

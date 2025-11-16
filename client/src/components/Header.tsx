@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
-import { Shield } from "lucide-react";
+import { Shield, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConnectButton, useCurrentAccount } from "@mysten/dapp-kit";
 
 export function Header() {
   const [location] = useLocation();
@@ -37,6 +38,7 @@ export function Header() {
               <span>Verify</span>
             </Button>
           </Link>
+          <ConnectButton data-testid="button-connect-wallet" />
         </nav>
       </div>
     </header>

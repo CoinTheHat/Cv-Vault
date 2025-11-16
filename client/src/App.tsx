@@ -10,6 +10,18 @@ import Success from "@/pages/Success";
 import Verify from "@/pages/Verify";
 import ProofDisplay from "@/pages/ProofDisplay";
 import NotFound from "@/pages/not-found";
+import { SuiClientProvider, WalletProvider } from "@mysten/dapp-kit";
+import { getFullnodeUrl } from "@mysten/sui/client";
+import { QueryClient } from "@tanstack/react-query";
+import "@mysten/dapp-kit/dist/index.css";
+
+const suiQueryClient = new QueryClient();
+
+const networks = {
+  devnet: { url: getFullnodeUrl("devnet") },
+  testnet: { url: getFullnodeUrl("testnet") },
+  mainnet: { url: getFullnodeUrl("mainnet") },
+};
 
 function Router() {
   return (
@@ -27,15 +39,19 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <div className="flex min-h-screen flex-col">
-          <Header />
-          <main className="flex-1">
-            <Router />
-          </main>
-        </div>
-        <Toaster />
-      </TooltipProvider>
+      <SuiClientProvider networks={networks} defaultNetwork="testnet" queryClient={suiQueryClient}>
+        <WalletProvider autoConnect>
+          <TooltipProvider>
+            <div className="flex min-h-screen flex-col">
+              <Header />
+              <main className="flex-1">
+                <Router />
+              </main>
+            </div>
+            <Toaster />
+          </TooltipProvider>
+        </WalletProvider>
+      </SuiClientProvider>
     </QueryClientProvider>
   );
 }
