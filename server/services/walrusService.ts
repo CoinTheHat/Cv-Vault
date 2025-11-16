@@ -37,42 +37,57 @@ export async function uploadCVToWalrus(
   fileName: string
 ): Promise<WalrusUploadResult> {
   try {
-    console.log(`[WALRUS] Uploading ${fileName} to Walrus testnet...`);
+    console.log(`[WALRUS] Uploading ${fileName} (${fileBuffer.length} bytes) to Walrus testnet...`);
 
-    // Upload to Walrus testnet with deletable=true and 5 epochs
-    const response = await fetch(`${WALRUS_PUBLISHER}/v1/blobs?deletable=true&epochs=5`, {
-      method: "PUT",
-      body: fileBuffer,
-      headers: {
-        "Content-Type": "application/pdf",
-      },
-    });
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Walrus upload failed: ${response.status} - ${errorText}`);
+    try {
+      // Upload to Walrus testnet with deletable=true and 5 epochs
+      const response = await fetch(`${WALRUS_PUBLISHER}/v1/blobs?deletable=true&epochs=5`, {
+        method: "PUT",
+        body: fileBuffer,
+        headers: {
+          "Content-Type": "application/pdf",
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Walrus upload failed: ${response.status} - ${errorText}`);
+      }
+
+      const result: WalrusApiResponse = await response.json();
+      
+      // Extract blob ID from response
+      const blobId = result.newlyCreated?.blobObject.blobId || result.alreadyCertified?.blobId;
+      
+      if (!blobId) {
+        throw new Error("No blob ID returned from Walrus");
+      }
+
+      const contentId = blobId;
+      const storageUrl = `${WALRUS_AGGREGATOR}/v1/blobs/${blobId}`;
+
+      console.log(`[WALRUS] ✅ Successfully uploaded to Walrus!`);
+      console.log(`[WALRUS] Blob ID: ${blobId}`);
+      console.log(`[WALRUS] Storage URL: ${storageUrl}`);
+
+      return {
+        contentId,
+        storageUrl,
+      };
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === 'AbortError') {
+        throw new Error('Walrus upload timeout - please try with a smaller file');
+      }
+      throw fetchError;
     }
-
-    const result: WalrusApiResponse = await response.json();
-    
-    // Extract blob ID from response
-    const blobId = result.newlyCreated?.blobObject.blobId || result.alreadyCertified?.blobId;
-    
-    if (!blobId) {
-      throw new Error("No blob ID returned from Walrus");
-    }
-
-    const contentId = blobId;
-    const storageUrl = `${WALRUS_AGGREGATOR}/v1/blobs/${blobId}`;
-
-    console.log(`[WALRUS] ✅ Successfully uploaded to Walrus!`);
-    console.log(`[WALRUS] Blob ID: ${blobId}`);
-    console.log(`[WALRUS] Storage URL: ${storageUrl}`);
-
-    return {
-      contentId,
-      storageUrl,
-    };
   } catch (error) {
     console.error("[WALRUS] Upload error:", error);
     throw new Error(`Failed to upload to Walrus: ${error instanceof Error ? error.message : "Unknown error"}`);
