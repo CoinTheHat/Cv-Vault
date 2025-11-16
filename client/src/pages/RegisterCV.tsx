@@ -12,8 +12,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
-import { useCurrentAccount, useSignAndExecuteTransactionBlock } from "@mysten/dapp-kit";
-import { TransactionBlock } from "@mysten/sui/transactions";
+import { useCurrentAccount, useSignAndExecuteTransaction } from "@mysten/dapp-kit";
+import { Transaction } from "@mysten/sui/transactions";
 
 const registerFormSchema = z.object({
   cvFile: z.instanceof(File).refine((file) => file.type === "application/pdf", "Only PDF files are allowed"),
@@ -27,7 +27,7 @@ export default function RegisterCV() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const currentAccount = useCurrentAccount();
-  const { mutate: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
+  const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
 
   const form = useForm<RegisterFormData>({
     resolver: zodResolver(registerFormSchema),
