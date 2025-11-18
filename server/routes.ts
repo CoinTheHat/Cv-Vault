@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
-import { createHash } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { storage } from "./storage";
 import { uploadCVToWalrus, retrieveFromWalrus } from "./services/walrusService";
 import { registerCVProofOnSui } from "./services/suiService";
@@ -74,7 +74,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Step 2: Encrypt CV using Seal with access control policy
       // Generate secret code if accessMode is "secret_code"
       const generatedSecretCode = (accessMode === "secret_code" && !secretAccessCode)
-        ? crypto.randomBytes(8).toString('hex')
+        ? randomBytes(8).toString('hex')
         : secretAccessCode;
 
       if (generatedSecretCode) {

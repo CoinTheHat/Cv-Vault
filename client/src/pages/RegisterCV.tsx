@@ -3,11 +3,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
-import { Upload, Loader2, FileText, Wallet, AlertCircle } from "lucide-react";
+import { Upload, Loader2, FileText, Wallet, AlertCircle, Shield, Users, Key } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -17,6 +20,8 @@ import { Transaction } from "@mysten/sui/transactions";
 
 const registerFormSchema = z.object({
   cvFile: z.instanceof(File).refine((file) => file.type === "application/pdf", "Only PDF files are allowed"),
+  accessMode: z.enum(["owner_only", "specific_wallets", "secret_code"]),
+  allowedViewers: z.string().optional(),
 });
 
 type RegisterFormData = z.infer<typeof registerFormSchema>;
@@ -31,7 +36,10 @@ export default function RegisterCV() {
 
   const form = useForm<RegisterFormData>({
     resolver: zodResolver(registerFormSchema),
-    defaultValues: {},
+    defaultValues: {
+      accessMode: "owner_only",
+      allowedViewers: "",
+    },
   });
 
   const registerMutation = useMutation({
@@ -49,6 +57,16 @@ export default function RegisterCV() {
       const formData = new FormData();
       formData.append("cvFile", data.cvFile);
       formData.append("walletAddress", currentAccount.address);
+      formData.append("accessMode", data.accessMode);
+      
+      // Add allowed viewers if mode is specific_wallets
+      if (data.accessMode === "specific_wallets" && data.allowedViewers) {
+        const viewers = data.allowedViewers
+          .split("\n")
+          .map(v => v.trim())
+          .filter(v => v.length > 0);
+        formData.append("allowedViewers", JSON.stringify(viewers));
+      }
 
       const response = await fetch("/api/proof/register", {
         method: "POST",
@@ -264,6 +282,89 @@ export default function RegisterCV() {
                     </FormItem>
                   )}
                 />
+
+                {/* Access Control Section */}
+                <FormField
+                  control={form.control}
+                  name="accessMode"
+                  render={({ field }) => (
+                    <FormItem className="space-y-4">
+                      <FormLabel className="text-base">Who can access your CV?</FormLabel>
+                      <FormControl>
+                        <RadioGroup
+                          onValueChange={field.onChange}
+                          value={field.value}
+                          className="space-y-3"
+                        >
+                          <div className="flex items-start space-x-3 rounded-lg border p-4 hover-elevate active-elevate-2">
+                            <RadioGroupItem value="owner_only" id="owner_only" data-testid="radio-owner-only" />
+                            <Label htmlFor="owner_only" className="flex-1 cursor-pointer">
+                              <div className="flex items-center gap-2">
+                                <Shield className="h-4 w-4 text-primary" />
+                                <span className="font-medium">Owner Only</span>
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Only you can decrypt and view this CV
+                              </p>
+                            </Label>
+                          </div>
+
+                          <div className="flex items-start space-x-3 rounded-lg border p-4 hover-elevate active-elevate-2">
+                            <RadioGroupItem value="specific_wallets" id="specific_wallets" data-testid="radio-specific-wallets" />
+                            <Label htmlFor="specific_wallets" className="flex-1 cursor-pointer">
+                              <div className="flex items-center gap-2">
+                                <Users className="h-4 w-4 text-primary" />
+                                <span className="font-medium">Specific Wallets</span>
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Only specified wallet addresses can view
+                              </p>
+                            </Label>
+                          </div>
+
+                          <div className="flex items-start space-x-3 rounded-lg border p-4 hover-elevate active-elevate-2">
+                            <RadioGroupItem value="secret_code" id="secret_code" data-testid="radio-secret-code" />
+                            <Label htmlFor="secret_code" className="flex-1 cursor-pointer">
+                              <div className="flex items-center gap-2">
+                                <Key className="h-4 w-4 text-primary" />
+                                <span className="font-medium">Secret Code</span>
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Anyone with the secret code can view (auto-generated)
+                              </p>
+                            </Label>
+                          </div>
+                        </RadioGroup>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Conditional field for specific wallets */}
+                {form.watch("accessMode") === "specific_wallets" && (
+                  <FormField
+                    control={form.control}
+                    name="allowedViewers"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Allowed Wallet Addresses</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            {...field}
+                            placeholder="Enter wallet addresses (one per line)&#10;0x123...&#10;0x456..."
+                            className="font-mono text-sm min-h-[120px]"
+                            data-testid="input-allowed-viewers"
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Enter one wallet address per line. These wallets can decrypt your CV.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 <Button
                   type="submit"

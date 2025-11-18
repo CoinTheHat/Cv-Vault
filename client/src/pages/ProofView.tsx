@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CopyButton } from "@/components/CopyButton";
 import { 
   Shield, 
@@ -29,6 +30,8 @@ export default function ProofView() {
   // Mock wallet state (in production, this would use real wallet connection)
   const [mockWalletAddress, setMockWalletAddress] = useState("");
   const [isWalletConnected, setIsWalletConnected] = useState(false);
+  const [secretAccessCode, setSecretAccessCode] = useState("");
+  const [authMethod, setAuthMethod] = useState<"wallet" | "secret_code">("wallet");
   const [decryptedPdfUrl, setDecryptedPdfUrl] = useState<string | null>(null);
   const [isDecrypting, setIsDecrypting] = useState(false);
   const [decryptError, setDecryptError] = useState<string | null>(null);
@@ -54,14 +57,21 @@ export default function ProofView() {
     setDecryptError(null);
 
     try {
-      const viewerAddress = mockWalletAddress || 'anonymous';
-      const url = `/api/proof/${proofCode}/decrypted?viewerAddress=${encodeURIComponent(viewerAddress)}`;
+      // Build query params based on auth method
+      const params = new URLSearchParams();
+      if (authMethod === "wallet" && mockWalletAddress) {
+        params.append("viewerAddress", mockWalletAddress);
+      } else if (authMethod === "secret_code" && secretAccessCode) {
+        params.append("secretAccessCode", secretAccessCode);
+      }
+      
+      const url = `/api/proof/${proofCode}/decrypted?${params.toString()}`;
       
       const response = await fetch(url);
       
       if (!response.ok) {
         if (response.status === 403) {
-          throw new Error("Access denied. You are not authorized to view this CV.");
+          throw new Error("Access denied. Invalid credentials.");
         }
         throw new Error("Failed to decrypt CV");
       }
@@ -175,43 +185,124 @@ export default function ProofView() {
               </CardHeader>
             </Card>
 
-            {/* Mock Wallet Connect (MVP) */}
-            {!isWalletConnected ? (
+            {/* Access Control - Wallet or Secret Code */}
+            {!isWalletConnected && !decryptedPdfUrl && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Wallet className="h-5 w-5" />
-                    Connect Wallet to View CV
+                    <Lock className="h-5 w-5 text-muted-foreground" />
+                    Access CV
                   </CardTitle>
                   <CardDescription>
-                    Enter your wallet address to request decryption access (mock for MVP)
+                    Choose how to authenticate and decrypt the CV
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="wallet-address">Wallet Address</Label>
-                    <Input
-                      id="wallet-address"
-                      placeholder="0x..."
-                      value={mockWalletAddress}
-                      onChange={(e) => setMockWalletAddress(e.target.value)}
-                      data-testid="input-wallet-address"
-                    />
-                    <p className="text-xs text-muted-foreground mt-2">
-                      💡 For MVP demo: Access is auto-approved. In production, this uses Seal access control.
-                    </p>
-                  </div>
-                  <Button 
-                    onClick={handleMockWalletConnect}
-                    className="w-full gap-2"
-                    data-testid="button-connect-wallet"
-                  >
-                    <Wallet className="h-4 w-4" />
-                    Connect Wallet (Mock)
-                  </Button>
+                <CardContent>
+                  <Tabs value={authMethod} onValueChange={(v) => setAuthMethod(v as "wallet" | "secret_code")}>
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="wallet" data-testid="tab-wallet">
+                        <Wallet className="h-4 w-4 mr-2" />
+                        Wallet
+                      </TabsTrigger>
+                      <TabsTrigger value="secret_code" data-testid="tab-secret-code">
+                        <Key className="h-4 w-4 mr-2" />
+                        Secret Code
+                      </TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="wallet" className="space-y-4 mt-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="walletAddress">Wallet Address</Label>
+                        <Input
+                          id="walletAddress"
+                          placeholder="0x..."
+                          value={mockWalletAddress}
+                          onChange={(e) => setMockWalletAddress(e.target.value)}
+                          data-testid="input-wallet-address"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Enter your wallet address to verify access
+                        </p>
+                      </div>
+                      {decryptError && (
+                        <div className="rounded-lg border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                            <p>{decryptError}</p>
+                          </div>
+                        </div>
+                      )}
+                      <Button 
+                        onClick={() => {
+                          setIsWalletConnected(true);
+                          handleDecryptAndView();
+                        }}
+                        className="w-full gap-2"
+                        disabled={!mockWalletAddress.trim() || isDecrypting}
+                        data-testid="button-connect-wallet"
+                      >
+                        {isDecrypting ? (
+                          <>
+                            <Key className="h-4 w-4 animate-spin" />
+                            Decrypting...
+                          </>
+                        ) : (
+                          <>
+                            <Wallet className="h-4 w-4" />
+                            Connect & Decrypt
+                          </>
+                        )}
+                      </Button>
+                    </TabsContent>
+                    
+                    <TabsContent value="secret_code" className="space-y-4 mt-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="secretCode">Secret Access Code</Label>
+                        <Input
+                          id="secretCode"
+                          type="password"
+                          placeholder="Enter secret code..."
+                          value={secretAccessCode}
+                          onChange={(e) => setSecretAccessCode(e.target.value)}
+                          data-testid="input-secret-code"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          If the CV owner shared a secret code with you, enter it here
+                        </p>
+                      </div>
+                      {decryptError && (
+                        <div className="rounded-lg border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                            <p>{decryptError}</p>
+                          </div>
+                        </div>
+                      )}
+                      <Button 
+                        onClick={handleDecryptAndView}
+                        className="w-full gap-2"
+                        disabled={!secretAccessCode.trim() || isDecrypting}
+                        data-testid="button-decrypt-with-code"
+                      >
+                        {isDecrypting ? (
+                          <>
+                            <Key className="h-4 w-4 animate-spin" />
+                            Decrypting...
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="h-4 w-4" />
+                            Decrypt & View
+                          </>
+                        )}
+                      </Button>
+                    </TabsContent>
+                  </Tabs>
                 </CardContent>
               </Card>
-            ) : (
+            )}
+
+            {decryptedPdfUrl && (
               <Card className="border-primary/30">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
