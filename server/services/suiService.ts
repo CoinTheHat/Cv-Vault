@@ -15,6 +15,8 @@ interface CVProofData {
   fileHash: string;
   contentId: string;
   walletAddress: string;
+  sealObjectId?: string;
+  ciphertextHash?: string;
 }
 
 interface SuiProofResult {
@@ -80,6 +82,8 @@ export async function registerCVProofOnSui(
   console.log(`[MOCK] Transaction Hash: ${txHash}`);
   console.log(`[MOCK] Wallet: ${proofData.walletAddress}`);
   console.log(`[MOCK] File Hash: ${proofData.fileHash}`);
+  console.log(`[MOCK] Seal Object ID: ${proofData.sealObjectId}`);
+  console.log(`[MOCK] Ciphertext Hash: ${proofData.ciphertextHash}`);
   console.log(`[MOCK] Content ID: ${proofData.contentId}`);
 
   return {

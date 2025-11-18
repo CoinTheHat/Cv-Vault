@@ -5,6 +5,7 @@ import { createHash } from "crypto";
 import { storage } from "./storage";
 import { uploadCVToWalrus, retrieveFromWalrus } from "./services/walrusService";
 import { registerCVProofOnSui } from "./services/suiService";
+import { sealService } from "./services/sealService";
 import { z } from "zod";
 
 // Configure multer for file uploads
@@ -31,10 +32,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   /**
    * POST /api/proof/register
    * 
-   * Registers a new CV proof
+   * Registers a new CV proof with Seal encryption
    * - Accepts PDF file upload and wallet address
-   * - Computes SHA-256 hash of the CV
-   * - Uploads CV to Walrus (mocked)
+   * - Encrypts PDF using Seal (mock)
+   * - Uploads encrypted CV to Walrus (mocked)
    * - Registers proof on Sui blockchain (mocked)
    * - Stores proof record in storage
    */
@@ -58,40 +59,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fileBuffer = req.file.buffer;
       const fileName = req.file.originalname;
 
-      console.log(`\n=== Starting CV Registration ===`);
+      console.log(`\n=== Starting CV Registration with Seal Encryption ===`);
       console.log(`File: ${fileName} (${fileBuffer.length} bytes)`);
       console.log(`Wallet: ${walletAddress}`);
 
-      // Step 1: Compute file hash (SHA-256)
+      // Step 1: Compute original file hash (SHA-256)
       const fileHash = createHash("sha256").update(fileBuffer).digest("hex");
-      console.log(`File Hash: ${fileHash}`);
+      console.log(`✅ Original File Hash: ${fileHash}`);
 
-      // Step 2: Upload to Walrus (mocked)
-      const { contentId, storageUrl } = await uploadCVToWalrus(fileBuffer, fileName);
+      // Step 2: Encrypt CV using Seal
+      const { ciphertext, sealObjectId } = await sealService.encryptCV({
+        pdfBytes: fileBuffer,
+        ownerAddress: walletAddress,
+        policy: {
+          // For MVP: allow any viewer (no restrictions)
+          allowedViewers: [],
+          requireApproval: false
+        }
+      });
+      console.log(`✅ Encrypted with Seal. Object ID: ${sealObjectId}`);
 
-      // Step 3: Register on Sui blockchain (mocked)
+      // Step 3: Compute ciphertext hash
+      const ciphertextHash = sealService.computeCiphertextHash(ciphertext);
+      console.log(`✅ Ciphertext Hash: ${ciphertextHash}`);
+
+      // Step 4: Upload encrypted CV to Walrus (mocked)
+      const { contentId, storageUrl } = await uploadCVToWalrus(ciphertext, `encrypted-${fileName}`);
+      console.log(`✅ Uploaded to Walrus. Content ID: ${contentId}`);
+
+      // Step 5: Register on Sui blockchain (mocked)
       const { txHash, proofCode } = await registerCVProofOnSui({
         fileHash,
         contentId,
         walletAddress,
+        sealObjectId,
+        ciphertextHash,
       });
+      console.log(`✅ Registered on Sui. TX: ${txHash}`);
 
-      // Step 4: Store proof record in storage
+      // Step 6: Store proof record in storage
       const proof = await storage.createCVProof({
         walletAddress,
         fileHash,
+        sealObjectId,
+        ciphertextHash,
         contentId,
         storageUrl,
         txHash,
         proofCode,
       });
 
-      console.log(`Proof Code: ${proofCode}`);
+      console.log(`✅ Proof Code: ${proofCode}`);
       console.log(`=== Registration Complete ===\n`);
 
       res.status(201).json(proof);
     } catch (error) {
-      console.error("Error registering CV proof:", error);
+      console.error("❌ Error registering CV proof:", error);
       res.status(500).json({
         message: error instanceof Error ? error.message : "Failed to register CV proof",
       });
@@ -169,24 +192,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   /**
+   * GET /api/proof/:proofCode/decrypted
+   * 
+   * Decrypts and serves the CV PDF for a recruiter
+   * - Retrieves proof metadata
+   * - Fetches encrypted CV from Walrus
+   * - Requests decryption key from Seal (with access control check)
+   * - Decrypts the CV
+   * - Serves as PDF
+   */
+  app.get("/api/proof/:proofCode/decrypted", async (req, res) => {
+    try {
+      const { proofCode } = req.params;
+      const { viewerAddress } = req.query;
+
+      console.log(`\n=== Decrypting CV ===`);
+      console.log(`Proof Code: ${proofCode}`);
+      console.log(`Viewer: ${viewerAddress || 'anonymous'}`);
+
+      // Step 1: Get proof record
+      const proof = await storage.getCVProofByCode(proofCode);
+      
+      if (!proof) {
+        console.log(`❌ Proof not found`);
+        return res.status(404).json({ message: "Proof not found" });
+      }
+
+      console.log(`✅ Proof found for wallet: ${proof.walletAddress}`);
+      console.log(`Seal Object ID: ${proof.sealObjectId}`);
+
+      // Step 2: Fetch encrypted CV from Walrus
+      const encryptedBuffer = await retrieveFromWalrus(proof.contentId);
+      
+      if (!encryptedBuffer) {
+        console.log(`❌ Encrypted CV not found in Walrus`);
+        return res.status(404).json({ message: "Encrypted CV not found" });
+      }
+
+      console.log(`✅ Retrieved encrypted CV (${encryptedBuffer.length} bytes)`);
+
+      // Step 3: Request decryption key from Seal
+      const { decryptKey, approved } = await sealService.getDecryptionKey({
+        sealObjectId: proof.sealObjectId,
+        viewerAddress: (viewerAddress as string) || 'anonymous',
+      });
+
+      if (!approved) {
+        console.log(`❌ Access denied for viewer: ${viewerAddress}`);
+        return res.status(403).json({ 
+          message: "Access denied. You are not authorized to view this CV." 
+        });
+      }
+
+      console.log(`✅ Access granted. Decrypting...`);
+
+      // Step 4: Decrypt the CV
+      const decryptedPDF = await sealService.decryptCV({
+        ciphertext: encryptedBuffer,
+        decryptKey,
+      });
+
+      console.log(`✅ Decrypted successfully (${decryptedPDF.length} bytes)`);
+      console.log(`=== Decryption Complete ===\n`);
+
+      // Step 5: Serve the PDF
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="cv-${proofCode.substring(0, 8)}.pdf"`);
+      res.send(decryptedPDF);
+
+    } catch (error) {
+      console.error("❌ Error decrypting CV:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to decrypt CV",
+      });
+    }
+  });
+
+  /**
    * GET /api/cv/:contentId
    * 
-   * Downloads CV file from Walrus storage
-   * - Retrieves file from Walrus
-   * - Serves as PDF with correct Content-Type
+   * [DEPRECATED] Downloads CV file from Walrus storage
+   * This endpoint is kept for backward compatibility but serves encrypted data
+   * Use /api/proof/:proofCode/decrypted instead for proper decryption
    */
   app.get("/api/cv/:contentId", async (req, res) => {
     try {
       const { contentId } = req.params;
 
-      console.log(`\n=== Downloading CV from Walrus ===`);
+      console.log(`\n=== [DEPRECATED] Downloading from Walrus ===`);
       console.log(`Content ID: ${contentId}`);
+      console.log(`⚠️  Warning: This endpoint serves encrypted data. Use /api/proof/:proofCode/decrypted instead.`);
 
       const fileBuffer = await retrieveFromWalrus(contentId);
 
       if (!fileBuffer) {
         console.log(`File not found in Walrus`);
-        return res.status(404).json({ message: "CV file not found" });
+        return res.status(404).json({ message: "File not found" });
       }
 
       console.log(`✅ Retrieved ${fileBuffer.length} bytes from Walrus`);
@@ -194,12 +295,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Set proper headers for PDF download
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `inline; filename="cv-${contentId.substring(0, 8)}.pdf"`);
+      res.setHeader("Content-Disposition", `inline; filename="encrypted-${contentId.substring(0, 8)}.pdf"`);
       res.send(fileBuffer);
     } catch (error) {
-      console.error("Error downloading CV:", error);
+      console.error("Error downloading file:", error);
       res.status(500).json({
-        message: error instanceof Error ? error.message : "Failed to download CV",
+        message: error instanceof Error ? error.message : "Failed to download file",
       });
     }
   });
