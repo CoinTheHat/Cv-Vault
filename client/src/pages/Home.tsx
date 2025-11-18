@@ -22,7 +22,7 @@ export default function Home() {
             
             {/* Improved Typography */}
             <h1 className="mb-6 text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
-              Tamper-Proof<br />CV Verification
+              Tamper-Proof <br />CV Verification
             </h1>
             
             <p className="mb-10 text-lg text-muted-foreground sm:text-xl font-normal max-w-2xl mx-auto leading-relaxed">
@@ -34,7 +34,7 @@ export default function Home() {
               <Link href="/register">
                 <Button 
                   size="lg" 
-                  className="w-full sm:w-auto h-12 px-8 text-base font-semibold shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105" 
+                  className="w-full sm:w-auto font-semibold" 
                   data-testid="button-hero-register" 
                   asChild
                 >
@@ -48,7 +48,7 @@ export default function Home() {
                 <Button 
                   size="lg" 
                   variant="outline" 
-                  className="w-full sm:w-auto h-12 px-8 text-base font-semibold border-2 shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105" 
+                  className="w-full sm:w-auto font-semibold" 
                   data-testid="button-hero-verify" 
                   asChild
                 >
@@ -265,7 +265,7 @@ export default function Home() {
               Join the future of verifiable credentials with blockchain-backed CV proof.
             </p>
             <Link href="/register">
-              <Button size="lg" className="h-12 px-8 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105" data-testid="button-cta-register" asChild>
+              <Button size="lg" className="font-semibold" data-testid="button-cta-register" asChild>
                 <span className="flex items-center gap-2">
                   Register Your CV Now
                   <FileCheck className="h-5 w-5" />
