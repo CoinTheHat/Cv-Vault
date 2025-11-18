@@ -8,7 +8,10 @@ On-Chain CV Proof Vault is a full-stack web application that enables candidates 
 - **Seal Encryption**: CVs are encrypted before upload using Seal (mocked), ensuring privacy
 - **Walrus Storage**: Encrypted CV files stored in decentralized Walrus network
 - **Sui Blockchain**: Immutable proof records with encryption metadata stored on-chain
-- **Access Control**: Seal manages decryption keys based on on-chain policies (auto-approved in MVP)
+- **Flexible Access Control**: CV owners choose who can access their CVs:
+  - **Owner Only**: Only the uploading wallet can decrypt
+  - **Specific Wallets**: Owner specifies allowed wallet addresses
+  - **Secret Code**: Anyone with a 16-character secret code can decrypt (auto-generated)
 - **Shareable Proofs**: Unique proof codes allow recruiters to request CV access
 
 The application is built as a monorepo with a React frontend and Express backend, both written in TypeScript. The current implementation includes mock services for Seal, Walrus, and Sui integration, with the architecture designed to easily swap in real SDK implementations when ready.
@@ -52,27 +55,39 @@ Preferred communication style: Simple, everyday language.
 - SHA-256 hash computation for file integrity verification
 - File buffer handling for storage service integration
 
-**Proof Registration Flow** (Updated with Seal Encryption):
+**Proof Registration Flow** (Updated with Access Control):
 1. Validate uploaded PDF file and wallet address
-2. Compute SHA-256 hash of original CV file
-3. **Encrypt CV using Seal** (AES-256-GCM mock implementation)
-4. Compute ciphertext hash for integrity verification
-5. Upload **encrypted CV** to Walrus storage (mocked)
-6. Register proof on Sui blockchain with Seal object ID and ciphertext hash (mocked)
-7. Store proof record with unique proof code
-8. Return proof details to client
+2. **Parse access control options** from registration form:
+   - Access mode (owner_only | specific_wallets | secret_code)
+   - Allowed viewers (if specific_wallets mode)
+   - Auto-generate 16-character secret code (if secret_code mode)
+3. Compute SHA-256 hash of original CV file
+4. **Encrypt CV using Seal** with access control policy (AES-256-GCM mock)
+5. Compute ciphertext hash for integrity verification
+6. Upload **encrypted CV** to Walrus storage (mocked)
+7. Register proof on Sui blockchain with Seal object ID and ciphertext hash (mocked)
+8. Store proof record with unique proof code and access control metadata
+9. Return proof details to client (includes secret code if applicable)
 
-**CV Viewing/Decryption Flow** (New):
+**CV Viewing/Decryption Flow** (Updated with Flexible Auth):
 1. Recruiter opens proof link (`/p/:proofCode`)
-2. Recruiter connects wallet (mock wallet address input for MVP)
+2. **Recruiter chooses authentication method** (Wallet or Secret Code tabs)
+   - **Wallet Tab**: Enter wallet address (mock input for MVP)
+   - **Secret Code Tab**: Enter secret access code
 3. System fetches encrypted CV from Walrus
-4. System requests decryption key from Seal (access control check)
-5. If approved, Seal returns decryption key
+4. **System validates access control**:
+   - Owner only: Check if viewer is the owner
+   - Specific wallets: Check if viewer is in allowedViewers array
+   - Secret code: Verify secretAccessCode matches
+5. If access granted, Seal returns decryption key
 6. System decrypts CV and serves PDF to recruiter
 7. CV displayed in browser or downloaded
 
 **Service Layer Architecture**: 
-- `sealService.ts` - **NEW**: Encryption/decryption and access control (AES-256-GCM mock)
+- `sealService.ts` - Encryption/decryption and **access control validation** (AES-256-GCM mock)
+  - `encryptCV()` - Encrypts with access control policy
+  - `getDecryptionKey()` - **Validates access control** before returning key
+  - `decryptCV()` - Decrypts with validated key
 - `walrusService.ts` - Decentralized storage integration (currently mocked)
 - `suiService.ts` - Blockchain proof registration (currently mocked)
 
@@ -80,12 +95,14 @@ All services include detailed comments explaining the real implementation approa
 
 ### Database Schema (Drizzle ORM)
 
-**Primary Table**: `cv_proofs` (Updated with Seal fields)
+**Primary Table**: `cv_proofs` (Updated with Access Control)
 - `id` - UUID primary key
-- `walletAddress` - User's wallet identifier
+- `walletAddress` - User's wallet identifier (CV owner)
 - `fileHash` - SHA-256 hash of the **original PDF** file
-- **`sealObjectId`** - **NEW**: Seal encryption policy object ID
-- **`ciphertextHash`** - **NEW**: SHA-256 hash of encrypted data (integrity verification)
+- `sealObjectId` - Seal encryption policy object ID
+- `ciphertextHash` - SHA-256 hash of encrypted data (integrity verification)
+- **`secretAccessCode`** - **NEW**: 16-char hex secret code (nullable, for secret_code mode)
+- **`allowedViewers`** - **NEW**: Array of wallet addresses (nullable, for specific_wallets mode)
 - `contentId` - Walrus storage content identifier (stores **encrypted** CV)
 - `storageUrl` - URL to retrieve **encrypted** CV from Walrus
 - `txHash` - Sui blockchain transaction hash
