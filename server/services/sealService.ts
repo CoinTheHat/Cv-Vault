@@ -28,7 +28,7 @@ interface EncryptCVParams {
 interface EncryptCVResult {
   ciphertext: Buffer;
   sealObjectId: string;
-  encryptionKey: string; // In mock, we store this; in real Seal, this would be managed on-chain
+  // NOTE: encryptionKey is NOT returned - it's stored internally/on-chain only
 }
 
 interface GetDecryptionKeyParams {
@@ -131,8 +131,8 @@ class SealService {
 
     return {
       ciphertext,
-      sealObjectId,
-      encryptionKey // In mock we return this; in production, this would never leave the Seal system
+      sealObjectId
+      // encryptionKey is stored internally - NEVER exposed to caller
     };
   }
 
@@ -164,7 +164,7 @@ class SealService {
       throw new Error(`Seal object not found: ${sealObjectId}`);
     }
 
-    // MOCK: Always approve access
+    // MOCK: Always approve access for MVP demo
     // REAL: Check on-chain policy and require wallet signature
     const { policy, ownerAddress } = sealObject;
     
@@ -175,10 +175,7 @@ class SealService {
 
     if (!approved) {
       console.log(`[Seal Mock] Access denied for ${viewerAddress} to ${sealObjectId}`);
-      return {
-        decryptKey: '',
-        approved: false
-      };
+      throw new Error(`Access denied. Viewer ${viewerAddress} is not authorized to decrypt this CV.`);
     }
 
     console.log(`[Seal Mock] Access granted for ${viewerAddress} to ${sealObjectId}`);

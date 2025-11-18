@@ -2,9 +2,16 @@
 
 ## Overview
 
-On-Chain CV Proof Vault is a full-stack web application that enables candidates to register their CVs with blockchain-backed proof and allows recruiters to verify the authenticity of CV submissions. The system creates tamper-proof CV records by computing file hashes, storing documents in decentralized storage (Walrus), and registering proof records on the Sui blockchain. Each registration generates a unique shareable proof code that recruiters can use to verify CV authenticity.
+On-Chain CV Proof Vault is a full-stack web application that enables candidates to register their CVs with blockchain-backed proof and end-to-end encryption using Seal. The system encrypts CV files, stores them in decentralized storage (Walrus), and registers tamper-proof verification records on the Sui blockchain. Recruiters can verify CV authenticity and decrypt files through a secure access-control flow managed by Seal encryption policies.
 
-The application is built as a monorepo with a React frontend and Express backend, both written in TypeScript. The current implementation includes mock services for Walrus and Sui integration, with the architecture designed to easily swap in real SDK implementations when ready.
+**Key Features:**
+- **Seal Encryption**: CVs are encrypted before upload using Seal (mocked), ensuring privacy
+- **Walrus Storage**: Encrypted CV files stored in decentralized Walrus network
+- **Sui Blockchain**: Immutable proof records with encryption metadata stored on-chain
+- **Access Control**: Seal manages decryption keys based on on-chain policies (auto-approved in MVP)
+- **Shareable Proofs**: Unique proof codes allow recruiters to request CV access
+
+The application is built as a monorepo with a React frontend and Express backend, both written in TypeScript. The current implementation includes mock services for Seal, Walrus, and Sui integration, with the architecture designed to easily swap in real SDK implementations when ready.
 
 ## User Preferences
 
@@ -18,10 +25,11 @@ Preferred communication style: Simple, everyday language.
 
 **Routing**: Wouter for client-side routing with the following key routes:
 - `/` - Landing page with hero and features
-- `/register` - CV registration form
+- `/register` - CV registration form (handles encryption automatically)
 - `/verify` - Proof code verification lookup
-- `/p/:proofCode` - Public proof display page
+- **`/p/:proofCode`** - **Updated**: Public proof viewing page with Seal decryption flow
 - `/success/:proofCode` - Post-registration success page
+- `/profile` - User's registered CV proofs dashboard
 
 **State Management**: TanStack Query (React Query) for server state management with custom query client configuration. No global client state management library is used.
 
@@ -44,28 +52,42 @@ Preferred communication style: Simple, everyday language.
 - SHA-256 hash computation for file integrity verification
 - File buffer handling for storage service integration
 
-**Proof Registration Flow**:
+**Proof Registration Flow** (Updated with Seal Encryption):
 1. Validate uploaded PDF file and wallet address
-2. Compute SHA-256 hash of CV file
-3. Upload CV to Walrus storage (mocked)
-4. Register proof on Sui blockchain (mocked)
-5. Store proof record with unique proof code
-6. Return proof details to client
+2. Compute SHA-256 hash of original CV file
+3. **Encrypt CV using Seal** (AES-256-GCM mock implementation)
+4. Compute ciphertext hash for integrity verification
+5. Upload **encrypted CV** to Walrus storage (mocked)
+6. Register proof on Sui blockchain with Seal object ID and ciphertext hash (mocked)
+7. Store proof record with unique proof code
+8. Return proof details to client
+
+**CV Viewing/Decryption Flow** (New):
+1. Recruiter opens proof link (`/p/:proofCode`)
+2. Recruiter connects wallet (mock wallet address input for MVP)
+3. System fetches encrypted CV from Walrus
+4. System requests decryption key from Seal (access control check)
+5. If approved, Seal returns decryption key
+6. System decrypts CV and serves PDF to recruiter
+7. CV displayed in browser or downloaded
 
 **Service Layer Architecture**: 
+- `sealService.ts` - **NEW**: Encryption/decryption and access control (AES-256-GCM mock)
 - `walrusService.ts` - Decentralized storage integration (currently mocked)
 - `suiService.ts` - Blockchain proof registration (currently mocked)
 
-Both services include detailed comments explaining the real implementation approach when SDKs become available.
+All services include detailed comments explaining the real implementation approach when SDKs become available.
 
 ### Database Schema (Drizzle ORM)
 
-**Primary Table**: `cv_proofs`
+**Primary Table**: `cv_proofs` (Updated with Seal fields)
 - `id` - UUID primary key
 - `walletAddress` - User's wallet identifier
-- `fileHash` - SHA-256 hash of the PDF file
-- `contentId` - Walrus storage content identifier
-- `storageUrl` - URL to retrieve CV from Walrus
+- `fileHash` - SHA-256 hash of the **original PDF** file
+- **`sealObjectId`** - **NEW**: Seal encryption policy object ID
+- **`ciphertextHash`** - **NEW**: SHA-256 hash of encrypted data (integrity verification)
+- `contentId` - Walrus storage content identifier (stores **encrypted** CV)
+- `storageUrl` - URL to retrieve **encrypted** CV from Walrus
 - `txHash` - Sui blockchain transaction hash
 - `proofCode` - Unique shareable verification code
 - `createdAt` - Timestamp of registration
@@ -92,18 +114,31 @@ Both services include detailed comments explaining the real implementation appro
 
 ### Third-Party Services (Planned Integration)
 
+**Seal Encryption** (NEW):
+- Purpose: Encrypt CV files with access control policies
+- Current State: Mocked in `sealService.ts` using Node.js crypto (AES-256-GCM)
+- Integration Point: Replace mock with official Seal SDK when available
+- Expected SDK: `@seal/sdk` or similar (hypothetical)
+- Expected Implementation: On-chain policy objects on Sui, wallet-based access control
+- Documentation: https://docs.seal.io (when available)
+- **Mock Features**:
+  - `encryptCV()` - AES-256-GCM encryption with random key
+  - `getDecryptionKey()` - Access control check (auto-approves in MVP)
+  - `decryptCV()` - AES-256-GCM decryption
+
 **Walrus Decentralized Storage**:
-- Purpose: Store CV PDF files in decentralized network
+- Purpose: Store **encrypted** CV files in decentralized network
 - Current State: Mocked in `walrusService.ts` with simulated content IDs and URLs
 - Integration Point: Replace mock with official Walrus SDK when available
 - Expected SDK: `@walrus/sdk` or similar
 - Documentation: https://docs.walrus.storage/
+- **NOTE**: In mock mode, files are stored in-memory; real Walrus testnet stores publicly
 
 **Sui Blockchain**:
-- Purpose: Register immutable proof records on-chain
+- Purpose: Register immutable proof records with encryption metadata on-chain
 - Current State: Mocked in `suiService.ts` with generated transaction hashes
 - Integration Point: Replace mock with `@mysten/sui.js` SDK
-- Expected Implementation: Move call to smart contract with proof data
+- Expected Implementation: Move call to smart contract with proof data including Seal object ID
 - Documentation: https://docs.sui.io/
 
 ### UI and Component Libraries
@@ -144,14 +179,20 @@ Both services include detailed comments explaining the real implementation appro
 
 1. **Monorepo Structure**: Single repository with `client/`, `server/`, and `shared/` directories enables code sharing and simplified deployment
 
-2. **Mock-First Architecture**: Blockchain and storage services are mocked with clear integration points, allowing development without external dependencies while maintaining production-ready structure
+2. **Seal Encryption Integration** (NEW): Privacy-first design encrypts CVs before upload, ensuring only authorized parties can view content. Mock implementation uses industry-standard AES-256-GCM with clear path to real Seal SDK integration.
 
-3. **Type Safety**: Shared schema definitions between frontend and backend using Drizzle-Zod ensures type consistency across the stack
+3. **Mock-First Architecture**: Blockchain, storage, and encryption services are mocked with clear integration points, allowing development without external dependencies while maintaining production-ready structure
 
-4. **File Validation**: Strict PDF-only validation with size limits protects against malicious uploads
+4. **Type Safety**: Shared schema definitions between frontend and backend using Drizzle-Zod ensures type consistency across the stack
 
-5. **Proof Code Generation**: Unique, shareable proof codes enable public verification without exposing internal IDs
+5. **File Validation**: Strict PDF-only validation with size limits protects against malicious uploads
 
-6. **In-Memory Storage**: Development simplicity with clear path to database migration via `IStorage` interface abstraction
+6. **Proof Code Generation**: Unique, shareable proof codes enable public verification without exposing internal IDs
 
-7. **Professional Design Language**: Modern, trust-focused UI inspired by Linear, Stripe, and Vercel rather than crypto-aesthetic to appeal to HR/recruiting professionals
+7. **In-Memory Storage**: Development simplicity with clear path to database migration via `IStorage` interface abstraction
+
+8. **Mock Wallet Connect**: For MVP, recruiter wallet connection is simulated via text input. Access control auto-approves all requests in current implementation.
+
+9. **Professional Design Language**: Modern, trust-focused UI inspired by Linear, Stripe, and Vercel rather than crypto-aesthetic to appeal to HR/recruiting professionals
+
+10. **End-to-End Encryption Flow**: Complete encrypt-upload-decrypt cycle implemented with clear separation of concerns between Seal (encryption), Walrus (storage), and Sui (proof registration)

@@ -231,22 +231,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`✅ Retrieved encrypted CV (${encryptedBuffer.length} bytes)`);
 
-      // Step 3: Request decryption key from Seal
-      const { decryptKey, approved } = await sealService.getDecryptionKey({
+      // Step 3: Request decryption key from Seal (throws on access denial)
+      const { decryptKey } = await sealService.getDecryptionKey({
         sealObjectId: proof.sealObjectId,
         viewerAddress: (viewerAddress as string) || 'anonymous',
       });
 
-      if (!approved) {
-        console.log(`❌ Access denied for viewer: ${viewerAddress}`);
-        return res.status(403).json({ 
-          message: "Access denied. You are not authorized to view this CV." 
+      console.log(`✅ Access granted. Decrypting...`);
+
+      // Step 4: Verify ciphertext integrity
+      const computedHash = sealService.computeCiphertextHash(encryptedBuffer);
+      if (computedHash !== proof.ciphertextHash) {
+        console.log(`❌ Ciphertext hash mismatch!`);
+        console.log(`Expected: ${proof.ciphertextHash}`);
+        console.log(`Got: ${computedHash}`);
+        return res.status(400).json({ 
+          message: "CV integrity check failed. File may have been tampered with." 
         });
       }
 
-      console.log(`✅ Access granted. Decrypting...`);
+      console.log(`✅ Ciphertext integrity verified`);
 
-      // Step 4: Decrypt the CV
+      // Step 5: Decrypt the CV
       const decryptedPDF = await sealService.decryptCV({
         ciphertext: encryptedBuffer,
         decryptKey,
@@ -255,13 +261,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`✅ Decrypted successfully (${decryptedPDF.length} bytes)`);
       console.log(`=== Decryption Complete ===\n`);
 
-      // Step 5: Serve the PDF
+      // Step 6: Serve the PDF
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `inline; filename="cv-${proofCode.substring(0, 8)}.pdf"`);
       res.send(decryptedPDF);
 
     } catch (error) {
       console.error("❌ Error decrypting CV:", error);
+      
+      // Handle different error types appropriately
+      if (error instanceof Error) {
+        if (error.message.includes("Access denied")) {
+          return res.status(403).json({ message: error.message });
+        }
+        if (error.message.includes("not found")) {
+          return res.status(404).json({ message: error.message });
+        }
+      }
+      
       res.status(500).json({
         message: error instanceof Error ? error.message : "Failed to decrypt CV",
       });
