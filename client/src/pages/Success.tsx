@@ -87,6 +87,32 @@ export default function Success() {
           </CardContent>
         </Card>
 
+        {/* Secret Access Code Card (if applicable) */}
+        {proof.secretAccessCode && (
+          <Card className="mb-6 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Copy className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                <CardTitle className="text-lg">🔑 Secret Access Code</CardTitle>
+              </div>
+              <CardDescription>
+                Anyone with this code can decrypt and view your CV. Keep it safe!
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-2 rounded-lg bg-background border border-card-border p-4">
+                <code className="flex-1 font-mono text-sm break-all font-bold" data-testid="text-secret-code">
+                  {proof.secretAccessCode}
+                </code>
+                <CopyButton text={proof.secretAccessCode} label="Copy Code" />
+              </div>
+              <p className="text-xs text-muted-foreground text-center">
+                ⚠️ Share this code only with people you trust to view your CV
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Shareable URL Card */}
         <Card className="mb-6 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/10">
           <CardHeader>
