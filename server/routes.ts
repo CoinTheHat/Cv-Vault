@@ -249,15 +249,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`✅ Proof found for wallet: ${proof.walletAddress}`);
       console.log(`Seal Object ID: ${proof.sealObjectId}`);
 
-      // Security Check: Owner-only CVs cannot be accessed via proof link
-      // They can only be viewed through the profile page
+      // Security Check: Owner-only CVs cannot be accessed via proof link BY NON-OWNERS
+      // Owner can always view their own CV
       const isOwnerOnly = !proof.secretAccessCode && (!proof.allowedViewers || proof.allowedViewers.length === 0);
+      const viewerAddr = typeof viewerAddress === 'string' ? viewerAddress : undefined;
+      const isOwner = viewerAddr && viewerAddr.toLowerCase() === proof.walletAddress.toLowerCase();
       
-      if (isOwnerOnly) {
-        console.log(`❌ Security: Owner-only CV cannot be accessed via proof link`);
+      if (isOwnerOnly && !isOwner) {
+        console.log(`❌ Security: Owner-only CV cannot be accessed via proof link by non-owner`);
         return res.status(403).json({ 
           message: "This CV is set to owner-only mode and cannot be accessed via proof link. The owner can view it in their profile." 
         });
+      }
+      
+      if (isOwnerOnly && isOwner) {
+        console.log(`✅ Owner accessing their own owner-only CV`);
       }
 
       // Step 2: Fetch encrypted CV from Walrus
