@@ -146,6 +146,9 @@ export default function ProofView() {
     );
   }
 
+  // Check if CV is owner-only (cannot be accessed via proof link)
+  const isOwnerOnly = !proof.secretAccessCode && (!proof.allowedViewers || proof.allowedViewers.length === 0);
+
   return (
     <div className="container py-12">
       <div className="mx-auto max-w-5xl">
@@ -185,8 +188,46 @@ export default function ProofView() {
               </CardHeader>
             </Card>
 
+            {/* Owner-Only Mode Warning */}
+            {isOwnerOnly && !decryptedPdfUrl && (
+              <Card className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-amber-800 dark:text-amber-400">
+                    <Lock className="h-5 w-5" />
+                    Owner-Only CV
+                  </CardTitle>
+                  <CardDescription className="text-amber-700 dark:text-amber-500">
+                    This CV is set to owner-only mode
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="rounded-lg border border-amber-300 dark:border-amber-700 bg-background p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium text-foreground">
+                          This CV cannot be accessed via proof link
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          The CV owner has restricted access to owner-only mode. Only the owner can view this CV through their profile page.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    <p className="mb-2 font-medium">If you are the owner:</p>
+                    <ul className="space-y-1 list-disc list-inside ml-2">
+                      <li>Connect your wallet on this site</li>
+                      <li>Navigate to your Profile page</li>
+                      <li>Find this CV and click "View CV (Decrypt)"</li>
+                    </ul>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Access Control - Wallet or Secret Code */}
-            {!isWalletConnected && !decryptedPdfUrl && (
+            {!isOwnerOnly && !isWalletConnected && !decryptedPdfUrl && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
