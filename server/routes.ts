@@ -249,6 +249,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`✅ Proof found for wallet: ${proof.walletAddress}`);
       console.log(`Seal Object ID: ${proof.sealObjectId}`);
 
+      // Security Check: Owner-only CVs cannot be accessed via proof link
+      // They can only be viewed through the profile page
+      const isOwnerOnly = !proof.secretAccessCode && (!proof.allowedViewers || proof.allowedViewers.length === 0);
+      
+      if (isOwnerOnly) {
+        console.log(`❌ Security: Owner-only CV cannot be accessed via proof link`);
+        return res.status(403).json({ 
+          message: "This CV is set to owner-only mode and cannot be accessed via proof link. The owner can view it in their profile." 
+        });
+      }
+
       // Step 2: Fetch encrypted CV from Walrus
       const encryptedBuffer = await retrieveFromWalrus(proof.contentId);
       
