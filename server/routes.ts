@@ -97,9 +97,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pdfBytes: fileBuffer,
         ownerAddress: walletAddress,
         policy: {
+          accessMode: accessMode || "owner_only",
           allowedViewers: accessMode === "specific_wallets" ? (allowedViewers || []) : [],
-          secretAccessCode: generatedSecretCode,
-          requireApproval: accessMode === "owner_only" // Only owner if owner_only mode
+          secretAccessCode: generatedSecretCode
         }
       });
       console.log(`✅ Encrypted with Seal. Object ID: ${sealObjectId}`);

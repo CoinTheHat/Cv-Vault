@@ -20,9 +20,9 @@ interface EncryptCVParams {
   pdfBytes: Buffer;
   ownerAddress: string;
   policy?: {
+    accessMode: 'owner_only' | 'specific_wallets' | 'secret_code';
     allowedViewers?: string[];
     secretAccessCode?: string;
-    requireApproval?: boolean;
   };
 }
 
@@ -124,7 +124,7 @@ class SealService {
     this.sealObjects.set(sealObjectId, {
       ownerAddress,
       encryptionKey,
-      policy: policy || { allowedViewers: [], secretAccessCode: undefined, requireApproval: false },
+      policy: policy || { accessMode: 'owner_only', allowedViewers: [], secretAccessCode: undefined },
       createdAt: new Date()
     });
 
@@ -170,12 +170,19 @@ class SealService {
       throw new Error(`Seal object not found: ${sealObjectId}`);
     }
 
-    // MOCK: Check access via wallet OR secret code
+    // MOCK: Check access based on policy mode
     // REAL: Check on-chain policy and require wallet signature
     const { policy, ownerAddress } = sealObject;
+    const accessMode = policy.accessMode || 'owner_only';
     
-    // Method 1: Secret access code (if provided and matches)
-    if (secretAccessCode && policy.secretAccessCode) {
+    console.log(`[Seal Mock] Access mode: ${accessMode}`);
+    
+    // Method 1: Secret code access (only if mode is secret_code)
+    if (accessMode === 'secret_code') {
+      if (!secretAccessCode) {
+        throw new Error(`Access denied. This CV requires a secret access code.`);
+      }
+      
       if (secretAccessCode === policy.secretAccessCode) {
         console.log(`[Seal Mock] ✓ Access granted via secret code`);
         return {
@@ -188,29 +195,47 @@ class SealService {
       }
     }
     
-    // Method 2: Wallet-based access control (owner or allowed viewers)
-    if (viewerAddress) {
-      const isOwner = viewerAddress.toLowerCase() === ownerAddress.toLowerCase();
+    // Method 2: Wallet-based access control
+    if (!viewerAddress) {
+      throw new Error(`Access denied. Please provide a wallet address.`);
+    }
+    
+    const isOwner = viewerAddress.toLowerCase() === ownerAddress.toLowerCase();
+    
+    // Owner-only mode: only owner can access
+    if (accessMode === 'owner_only') {
+      if (!isOwner) {
+        console.log(`[Seal Mock] ✗ Access denied for ${viewerAddress} (owner-only mode)`);
+        throw new Error(`Access denied. Only the CV owner can decrypt this CV.`);
+      }
+      
+      console.log(`[Seal Mock] ✓ Access granted for owner ${viewerAddress}`);
+      return {
+        decryptKey: sealObject.encryptionKey,
+        approved: true
+      };
+    }
+    
+    // Specific wallets mode: owner OR allowed viewers
+    if (accessMode === 'specific_wallets') {
       const isAllowedViewer = policy.allowedViewers?.some(
         (addr: string) => addr.toLowerCase() === viewerAddress.toLowerCase()
       ) || false;
-      const approved = isOwner || isAllowedViewer || !policy.requireApproval;
-
-      if (!approved) {
-        console.log(`[Seal Mock] ✗ Access denied for ${viewerAddress}`);
+      
+      if (!isOwner && !isAllowedViewer) {
+        console.log(`[Seal Mock] ✗ Access denied for ${viewerAddress} (not in allowed list)`);
         throw new Error(`Access denied. Wallet ${viewerAddress} is not authorized to decrypt this CV.`);
       }
-
-      console.log(`[Seal Mock] ✓ Access granted for ${viewerAddress} (${isOwner ? 'owner' : 'allowed viewer'})`);
       
+      console.log(`[Seal Mock] ✓ Access granted for ${viewerAddress} (${isOwner ? 'owner' : 'allowed viewer'})`);
       return {
         decryptKey: sealObject.encryptionKey,
         approved: true
       };
     }
 
-    // No valid authentication method provided
-    throw new Error(`Access denied. Please provide either a wallet address or secret access code.`);
+    // Fallback error
+    throw new Error(`Access denied. Invalid access mode or authentication method.`);
   }
 
   /**
