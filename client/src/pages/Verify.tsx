@@ -108,7 +108,7 @@ export default function Verify() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">•</span>
-                <span>View verified details and download the CV document</span>
+                <span>View verified details and download the PDF document</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">•</span>
