@@ -119,7 +119,7 @@ export default function Profile() {
               </div>
               <h2 className="mb-3 text-2xl font-semibold">Connect Your Wallet</h2>
               <p className="mb-6 text-muted-foreground max-w-md">
-                Please connect your wallet to view your registered CVs and manage your blockchain proofs.
+                Please connect your wallet to view your registered PDFs and manage your blockchain proofs.
               </p>
               <Button data-testid="button-go-home" asChild>
                 <Link href="/">Go to Home</Link>
@@ -156,13 +156,13 @@ export default function Profile() {
             <div>
               <h1 className="text-3xl font-bold mb-2">My Profile</h1>
               <p className="text-muted-foreground">
-                View and manage your registered CV proofs
+                View and manage your registered PDF proofs
               </p>
             </div>
             <Button className="gap-2" data-testid="button-register-new-cv" asChild>
               <Link href="/register">
                 <Plus className="h-4 w-4" />
-                Register New CV
+                Register New PDF
               </Link>
             </Button>
           </div>
@@ -186,7 +186,7 @@ export default function Profile() {
         {/* CV Proofs List */}
         <div>
           <h2 className="text-xl font-semibold mb-4">
-            Registered CVs {proofs && `(${proofs.length})`}
+            Registered PDFs {proofs && `(${proofs.length})`}
           </h2>
 
           {error ? (
